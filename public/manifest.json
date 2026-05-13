@@ -1,0 +1,22 @@
+{
+  "name": "Subrai Mission Convent School",
+  "short_name": "SMCS",
+  "description": "School Management System for Subrai Mission Convent School",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#4f46e5",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/color/512/school.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://img.icons8.com/color/192/school.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
