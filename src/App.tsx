@@ -19287,148 +19287,6 @@ const schoolMigrations = `
 
       {/* Student QR Code Modal */}
       <AnimatePresence>
-        {showBulkStudentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[32px] p-8 shadow-2xl relative z-10 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-16 -mt-16"></div>
-            <div className="flex justify-between items-center mb-6 shrink-0">
-              <div>
-                <h3 className="text-2xl font-black text-text-heading">Bulk Student Import</h3>
-                <p className="text-sm text-text-sub font-medium">Add multiple students using JSON format.</p>
-              </div>
-              <button onClick={() => setShowBulkStudentModal(false)} className="p-2 hover:bg-slate-100 rounded-full">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
-              <div>
-                <label className="label-text">JSON Data (Paste list of student objects)</label>
-                <textarea 
-                  className="input-field min-h-[300px] font-mono text-[10px]" 
-                  placeholder='[{"Name": "Kevin Molsom", "student type": "OLD", "Class / Section": "2", "SECTION": "A", "ROLL NO": 1, ...}]'
-                  value={bulkStudentInput}
-                  onChange={(e) => setBulkStudentInput(e.target.value)}
-                />
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-2xl flex flex-col gap-3">
-                <p className="text-[10px] font-black text-primary uppercase tracking-widest">Import Template</p>
-                <div className="grid grid-cols-1 gap-3">
-                  <button 
-                    onClick={() => setBulkStudentInput(JSON.stringify([
-                      { "student type": "OLD", "Name": "Kevin Molsom", "Class / Section": "2", "SECTION": "A", "ROLL NO": 1, "D.O.B": "20/11/2018", "Father Name": "Ramesh Hari Molsom", "Mother Name": "Ramengi Molsom", "FATHERS PHONE No.": "9366556971", "Blood Group": "A+", "Address": "Chinta Kumar Para, P.O - Khasiamangal, P.S - Teliamura, Dist. - Khowai Tripura - 799205" },
-                      { "student type": "OLD", "Name": "Samuel Debbarma", "Class / Section": "2", "SECTION": "A", "ROLL NO": 2, "D.O.B": "19/06/2018", "Father Name": "Mrinal Debbarma", "Mother Name": "Sambhu Laxmi Debbarma", "FATHERS PHONE No.": "8787804909", "Blood Group": "B+", "Address": "Bahadur Sardar Para, P.O - Khasiamangal, P.S - Teliamura, Dist. - Khowai Tripura - 799205" }
-                    ], null, 2))}
-                    className="text-left p-3 rounded-xl bg-white border border-slate-200 hover:border-primary/50 transition-all text-[10px] font-bold flex items-center justify-between group"
-                  >
-                    <span>Load Sample Data (Matching Image Columns)</span>
-                    <Plus size={12} className="text-slate-300 group-hover:text-primary transition-all" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-4 mt-6 shrink-0">
-              <button 
-                onClick={() => setShowBulkStudentModal(false)}
-                className="flex-1 py-4 font-bold text-text-sub hover:bg-slate-50 rounded-2xl transition-all uppercase tracking-widest text-xs"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={async () => {
-                  try {
-                    const data = JSON.parse(bulkStudentInput);
-                    if (!Array.isArray(data)) throw new Error('Data must be an array');
-                    
-                    let successCount = 0;
-                    for (const s of data) {
-                      const studentPayload = {
-                        first_name: s.Name || s.name || '',
-                        surname: '',
-                        student_type: s["student type"] || s.studentType || 'OLD',
-                        academic_session: schoolProfile.currentSession || '2023-24',
-                        class_name: s["Class / Section"] || s.class || '',
-                        section_name: s["SECTION"] || s.section || '',
-                        roll_number: s["ROLL NO"] || s.rollNumber || '',
-                        date_of_birth: s["D.O.B"] || s.dob || '',
-                        father_name: s["Father Name"] || s.fatherName || '',
-                        mother_name: s["Mother Name"] || s.motherName || '',
-                        father_mobile: s["FATHERS PHONE No."] || s.fatherMobile || '',
-                        blood_group: s["Blood Group"] || s.bloodGroup || '',
-                        residential_address: s["Address"] || s.address || '',
-                        student_id: `STD-${Math.floor(100000 + Math.random() * 900000)}`,
-                        admission_date: new Date().toISOString().split('T')[0]
-                      };
-
-                      if (supabase) {
-                        const { error } = await supabase.from('students').insert([studentPayload]);
-                        if (!error) successCount++;
-                      } else {
-                        setStudents((prev: any) => [...prev, {
-                          id: Math.random().toString(36).substr(2, 9),
-                          studentId: studentPayload.student_id,
-                          name: studentPayload.first_name,
-                          surname: studentPayload.surname,
-                          studentType: studentPayload.student_type,
-                          session: studentPayload.academic_session,
-                          class: studentPayload.class_name,
-                          section: studentPayload.section_name,
-                          rollNumber: studentPayload.roll_number,
-                          dob: studentPayload.date_of_birth,
-                          fatherName: studentPayload.father_name,
-                          motherName: studentPayload.mother_name,
-                          fatherMobile: studentPayload.father_mobile,
-                          bloodGroup: studentPayload.blood_group,
-                          address: studentPayload.residential_address,
-                          admissionDate: studentPayload.admission_date
-                        }]);
-                        successCount++;
-                      }
-                    }
-
-                    alert(`Successfully imported ${successCount} students.`);
-                    setShowBulkStudentModal(false);
-                    setBulkStudentInput('');
-                    
-                    if (supabase) {
-                      const { data: studentsData } = await supabase.from('students').select('*');
-                      if (studentsData) {
-                        setStudents(studentsData.map((s: any) => ({
-                          id: s.id,
-                          studentId: s.student_id,
-                          name: s.first_name,
-                          surname: s.surname,
-                          studentType: s.student_type,
-                          class: s.class_name,
-                          section: s.section_name,
-                          rollNumber: s.roll_number,
-                          dob: s.date_of_birth,
-                          fatherName: s.father_name,
-                          motherName: s.mother_name,
-                          fatherMobile: s.father_mobile,
-                          bloodGroup: s.blood_group,
-                          address: s.residential_address,
-                          admissionDate: s.admission_date
-                        })));
-                      }
-                    }
-                  } catch (err) {
-                    alert('Invalid JSON data or error during import.');
-                  }
-                }}
-                className="flex-1 btn-primary py-4 shadow-xl shadow-primary/20 uppercase tracking-widest text-xs"
-              >
-                Process Student Import
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {selectedStudentQR && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
             <motion.div 
@@ -19496,7 +19354,7 @@ const schoolMigrations = `
             <div className="flex justify-between items-center mb-6 shrink-0">
               <div>
                 <h3 className="text-2xl font-black text-text-heading">Bulk Student Import</h3>
-                <p className="text-sm text-text-sub font-medium">Add multiple students using JSON format.</p>
+                <p className="text-sm text-text-sub font-medium">Import via JSON or paste directly from Excel/Google Sheets.</p>
               </div>
               <button onClick={() => setShowBulkStudentModal(false)} className="p-2 hover:bg-slate-100 rounded-full">
                 <X size={20} />
@@ -19505,13 +19363,14 @@ const schoolMigrations = `
 
             <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2">
               <div>
-                <label className="label-text">JSON Data (Paste list of student objects)</label>
+                <label className="label-text">Paste Data (JSON array or Table from Spreadsheet)</label>
                 <textarea 
                   className="input-field min-h-[300px] font-mono text-[10px]" 
-                  placeholder='[{"Name": "Kevin Molsom", "student type": "OLD", "Class / Section": "2", "SECTION": "A", "ROLL NO": 1, ...}]'
+                  placeholder='Name	Student Type	Class	Section	Roll No... (or paste JSON array)'
                   value={bulkStudentInput}
                   onChange={(e) => setBulkStudentInput(e.target.value)}
                 />
+                <p className="text-[10px] text-text-sub mt-2 italic">* For spreadsheet data, include the header row at the top.</p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-2xl flex flex-col gap-3">
@@ -19541,25 +19400,67 @@ const schoolMigrations = `
               <button 
                 onClick={async () => {
                   try {
-                    const data = JSON.parse(bulkStudentInput);
-                    if (!Array.isArray(data)) throw new Error('Data must be an array');
+                    let data: any[];
+                    const trimmedInput = bulkStudentInput.trim();
+                    
+                    if (trimmedInput.startsWith('[') || trimmedInput.startsWith('{')) {
+                      try {
+                        const parsed = JSON.parse(trimmedInput);
+                        data = Array.isArray(parsed) ? parsed : [parsed];
+                      } catch (e) {
+                         throw new Error('Invalid JSON format. Please verify the structure.');
+                      }
+                    } else {
+                      // Attempt to parse as Tab-Separated Values (Excel/Google Sheets)
+                      const lines = trimmedInput.split(/\r?\n/).filter(line => line.trim().length > 0);
+                      if (lines.length < 2) throw new Error('Data must contain a header row and at least one student entry.');
+                      
+                      const firstLine = lines[0];
+                      // Detect separator: Tab is standard for copy-paste from spreadsheet
+                      const separator = firstLine.includes('\t') ? '\t' : (firstLine.includes(',') ? ',' : null);
+                      if (!separator) throw new Error('Format not recognized. Please copy/paste a table from Excel or providing a valid JSON array.');
+                      
+                      const rawHeaders = firstLine.split(separator).map(h => h.trim().toLowerCase());
+                      data = lines.slice(1).map(line => {
+                        const values = line.split(separator);
+                        const obj: any = {};
+                        rawHeaders.forEach((header, i) => {
+                          const val = values[i] ? values[i].trim() : '';
+                          // Flexible header matching
+                          if (header === 'name' || header === 'student name' || header === 'first name') obj.Name = val;
+                          else if (header === 'surname' || header === 'last name') obj.Surname = val;
+                          else if (header === 'student type' || header === 'type' || header === 'category') obj['student type'] = val;
+                          else if (header === 'class' || header === 'class / section' || header === 'standard') obj['Class / Section'] = val;
+                          else if (header === 'section' || header === 'sec') obj['SECTION'] = val;
+                          else if (header === 'roll no' || header === 'roll' || header === 'roll number') obj['ROLL NO'] = val;
+                          else if (header === 'd.o.b' || header === 'dob' || header === 'date of birth') obj['D.O.B'] = val;
+                          else if (header === 'father name' || header === 'father') obj['Father Name'] = val;
+                          else if (header === 'mother name' || header === 'mother') obj['Mother Name'] = val;
+                          else if (header.includes('phone') || header.includes('mobile')) obj['FATHERS PHONE No.'] = val;
+                          else if (header.includes('blood')) obj['Blood Group'] = val;
+                          else if (header === 'address' || header.includes('residential')) obj['Address'] = val;
+                          else obj[header] = val; // Fallback
+                        });
+                        return obj;
+                      });
+                    }
                     
                     let successCount = 0;
                     for (const s of data) {
                       const studentPayload = {
-                        first_name: s.Name || s.name || '',
-                        surname: '',
-                        student_type: s["student type"] || s.studentType || 'OLD',
+                        first_name: s.Name || s.name || s.firstName || '',
+                        surname: s.Surname || s.surname || s.lastName || '',
+                        student_type: s["student type"] || s.studentType || s.type || 'OLD',
                         academic_session: schoolProfile.currentSession || '2023-24',
-                        class_name: s["Class / Section"] || s.class || '',
-                        section_name: s["SECTION"] || s.section || '',
-                        roll_number: s["ROLL NO"] || s.rollNumber || '',
-                        date_of_birth: s["D.O.B"] || s.dob || '',
+                        class_name: s["Class / Section"] || s.class || s.className || '',
+                        section_name: s["SECTION"] || s.section || s.sectionName || '',
+                        roll_number: s["ROLL NO"] || s.rollNumber || s.roll || '',
+                        date_of_birth: s["D.O.B"] || s.dob || s.dateOfBirth || '',
                         father_name: s["Father Name"] || s.fatherName || '',
                         mother_name: s["Mother Name"] || s.motherName || '',
-                        father_mobile: s["FATHERS PHONE No."] || s.fatherMobile || '',
+                        father_mobile: s["FATHERS PHONE No."] || s.fatherMobile || s.phone || s.mobile || '',
                         blood_group: s["Blood Group"] || s.bloodGroup || '',
-                        residential_address: s["Address"] || s.address || '',
+                        residential_address: s["Address"] || s.address || s.residentialAddress || '',
                         student_id: `STD-${Math.floor(100000 + Math.random() * 900000)}`,
                         admission_date: new Date().toISOString().split('T')[0]
                       };
@@ -19568,13 +19469,13 @@ const schoolMigrations = `
                         const { error } = await supabase.from('students').insert([studentPayload]);
                         if (!error) successCount++;
                       } else {
-                        setStudents((prev: any) => [...prev, {
+                        // For local testing
+                        setStudents((prev: any) => [{
                           id: Math.random().toString(36).substr(2, 9),
                           studentId: studentPayload.student_id,
                           name: studentPayload.first_name,
                           surname: studentPayload.surname,
                           studentType: studentPayload.student_type,
-                          session: studentPayload.academic_session,
                           class: studentPayload.class_name,
                           section: studentPayload.section_name,
                           rollNumber: studentPayload.roll_number,
@@ -19585,17 +19486,17 @@ const schoolMigrations = `
                           bloodGroup: studentPayload.blood_group,
                           address: studentPayload.residential_address,
                           admissionDate: studentPayload.admission_date
-                        }]);
+                        }, ...prev]);
                         successCount++;
                       }
                     }
 
-                    alert(`Successfully imported ${successCount} students.`);
+                    alert(`Successfully imported ${successCount} out of ${data.length} students.`);
                     setShowBulkStudentModal(false);
                     setBulkStudentInput('');
                     
                     if (supabase) {
-                      const { data: studentsData } = await supabase.from('students').select('*');
+                      const { data: studentsData } = await supabase.from('students').select('*').order('created_at', { ascending: false });
                       if (studentsData) {
                         setStudents(studentsData.map((s: any) => ({
                           id: s.id,
@@ -19616,8 +19517,8 @@ const schoolMigrations = `
                         })));
                       }
                     }
-                  } catch (err) {
-                    alert('Invalid JSON data or error during import.');
+                  } catch (err: any) {
+                    alert('Import failed: ' + (err.message || 'Unknown processing error.'));
                   }
                 }}
                 className="flex-1 btn-primary py-4 shadow-xl shadow-primary/20 uppercase tracking-widest text-xs"
