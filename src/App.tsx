@@ -605,7 +605,50 @@ interface Student {
 
 // --- Report Card Components ---
 
+const toBase64 = async (url: string): Promise<string> => {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Fetch failed');
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Reader error'));
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn('Failed to convert image to base64:', url, e);
+    return url; // Fallback to original URL
+  }
+};
+
 const ReportCardView = ({ student, template, reportCard, schoolProfile }: { student: any, template: ReportCardTemplate, reportCard: ReportCard, schoolProfile?: any }) => {
+  const [stampBase64, setStampBase64] = useState<string>('');
+  const [teacherSigBase64, setTeacherSigBase64] = useState<string>('');
+  const [principalSigBase64, setPrincipalSigBase64] = useState<string>('');
+
+  useEffect(() => {
+    let active = true;
+    const convertAll = async () => {
+      if (schoolProfile?.schoolStamp) {
+        const b64 = await toBase64(schoolProfile.schoolStamp);
+        if (active) setStampBase64(b64);
+      }
+      if (schoolProfile?.classTeacherSignature) {
+        const b64 = await toBase64(schoolProfile.classTeacherSignature);
+        if (active) setTeacherSigBase64(b64);
+      }
+      if (schoolProfile?.principalSignature) {
+        const b64 = await toBase64(schoolProfile.principalSignature);
+        if (active) setPrincipalSigBase64(b64);
+      }
+    };
+    convertAll();
+    return () => { active = false; };
+  }, [schoolProfile?.schoolStamp, schoolProfile?.classTeacherSignature, schoolProfile?.principalSignature]);
+
   if (!student || !template) {
     return (
       <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
@@ -882,7 +925,7 @@ const ReportCardView = ({ student, template, reportCard, schoolProfile }: { stud
         <div className="text-center font-serif">
           <div className="w-48 h-14 border-b border-slate-300 mx-auto mb-3 flex items-end justify-center relative">
             {schoolProfile?.classTeacherSignature ? (
-              <img src={schoolProfile.classTeacherSignature} alt="" className="h-11 object-contain mb-1 mix-blend-multiply opacity-90" referrerPolicy="no-referrer" />
+              <img src={teacherSigBase64 || schoolProfile.classTeacherSignature} alt="" className="h-11 object-contain mb-1 mix-blend-multiply opacity-90" referrerPolicy="no-referrer" />
             ) : (
               <span className="text-[9px] text-slate-300 italic mb-1 uppercase font-bold tracking-wider">Not Uploaded</span>
             )}
@@ -894,7 +937,7 @@ const ReportCardView = ({ student, template, reportCard, schoolProfile }: { stud
         <div className="text-center font-serif flex flex-col items-center justify-center">
           <div className="w-20 h-20 rounded-full border border-slate-200 flex items-center justify-center mb-2 bg-slate-50/50 relative">
             {schoolProfile?.schoolStamp ? (
-              <img src={schoolProfile.schoolStamp} alt="" className="w-14 h-14 object-contain mix-blend-multiply opacity-80" referrerPolicy="no-referrer" />
+              <img src={stampBase64 || schoolProfile.schoolStamp} alt="" className="w-14 h-14 object-contain mix-blend-multiply opacity-80" referrerPolicy="no-referrer" />
             ) : (
               <span className="text-[8px] text-slate-300 font-bold uppercase text-center leading-tight">Seal Area</span>
             )}
@@ -906,7 +949,7 @@ const ReportCardView = ({ student, template, reportCard, schoolProfile }: { stud
         <div className="text-center font-serif">
           <div className="w-48 h-14 border-b border-slate-300 mx-auto mb-3 flex items-end justify-center relative">
             {schoolProfile?.principalSignature ? (
-              <img src={schoolProfile.principalSignature} alt="" className="h-11 object-contain mb-1 mix-blend-multiply opacity-90" referrerPolicy="no-referrer" />
+              <img src={principalSigBase64 || schoolProfile.principalSignature} alt="" className="h-11 object-contain mb-1 mix-blend-multiply opacity-90" referrerPolicy="no-referrer" />
             ) : (
               <span className="text-[9px] text-slate-300 italic mb-1 uppercase font-bold tracking-wider">Not Uploaded</span>
             )}
@@ -1063,6 +1106,7 @@ const ReportCardEditor = ({ student, template, reportCard: existingReport, schoo
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: '#ffffff'
       });
@@ -1097,25 +1141,63 @@ const ReportCardEditor = ({ student, template, reportCard: existingReport, schoo
     const studentName = `${name} ${surname}`.trim() || 'Student';
     document.title = `ReportCard-${studentName}`;
 
+    // Walk up the DOM adding the print-parent helper class to avoid layout clipping inside dialogs/modals
+    const parents: HTMLElement[] = [];
+    let p = element.parentElement;
+    while (p && p !== document.body) {
+      parents.push(p);
+      p.classList.add('print-parent');
+      p = p.parentElement;
+    }
+
     const style = document.createElement('style');
     style.id = 'print-style-helper';
     style.innerHTML = `
       @media print {
+        @page {
+          size: auto;
+          margin: 10mm !important;
+        }
+        html, body {
+          height: auto !important;
+          overflow: visible !important;
+          background: white !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
         body * {
           visibility: hidden !important;
         }
-        #${elementId}, #${elementId} * {
+        .print-parent {
           visibility: visible !important;
-        }
-        #${elementId} {
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
+          overflow: visible !important;
+          height: auto !important;
+          max-height: none !important;
+          position: static !important;
+          display: block !important;
           margin: 0 !important;
-          padding: 20px !important;
+          padding: 0 !important;
           border: none !important;
           box-shadow: none !important;
+          background: transparent !important;
+          transform: none !important;
+          filter: none !important;
+        }
+        #${elementId}, #${elementId} * {
+          visibility: visible !important;
+          overflow: visible !important;
+        }
+        #${elementId} {
+          position: relative !important;
+          display: block !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+          margin: 0 !important;
+          padding: 10px !important;
+          border: none !important;
+          box-shadow: none !important;
+          background: white !important;
           max-width: 100% !important;
         }
         .no-print, .no-print * {
@@ -1134,6 +1216,7 @@ const ReportCardEditor = ({ student, template, reportCard: existingReport, schoo
       if (styleElement) {
         styleElement.remove();
       }
+      parents.forEach(parentEl => parentEl.classList.remove('print-parent'));
     }, 1000);
   };
 
@@ -3419,7 +3502,8 @@ const Academics = ({
   setFormData,
   setEditingStudentId,
   setIsViewOnly,
-  schoolProfile
+  schoolProfile,
+  handleDeleteStudent
 }: any) => {
   const { sessions } = schoolProfile || { sessions: [] };
   const [activeTab, setActiveTab] = useState<'timetable' | 'assignments' | 'promotion' | 'syllabus' | 'homework' | 'planner' | 'rollnumber'>('timetable');
@@ -4599,15 +4683,19 @@ const Academics = ({
                                         `Are you sure you want to delete ${s.name}? This action cannot be undone.`,
                                         async () => {
                                           try {
-                                            if (supabase) {
+                                            if (handleDeleteStudent) {
+                                              await handleDeleteStudent(s);
+                                            } else if (supabase) {
                                               const { error } = await supabase
                                                 .from('students')
                                                 .delete()
                                                 .eq('id', s.id);
                                               
                                               if (error) throw error;
+                                              setStudents(prev => prev.filter(std => std.id !== s.id));
+                                            } else {
+                                              setStudents(prev => prev.filter(std => std.id !== s.id));
                                             }
-                                            setStudents(prev => prev.filter(std => std.id !== s.id));
                                             showModal('Success', 'Student deleted successfully!');
                                           } catch (err: any) {
                                             console.error('Error deleting student:', err);
@@ -8471,6 +8559,7 @@ const StudentPanel = ({ students, examResults, examSchedules, reportCards, repor
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: '#ffffff'
       });
@@ -8505,25 +8594,63 @@ const StudentPanel = ({ students, examResults, examSchedules, reportCards, repor
     const studentName = `${myStudent.name || ''} ${myStudent.surname || ''}`.trim() || 'Student';
     document.title = `ReportCard-${studentName}`;
 
+    // Walk up the DOM adding the print-parent helper class to avoid layout clipping inside dialogs/modals
+    const parents: HTMLElement[] = [];
+    let p = element.parentElement;
+    while (p && p !== document.body) {
+      parents.push(p);
+      p.classList.add('print-parent');
+      p = p.parentElement;
+    }
+
     const style = document.createElement('style');
     style.id = 'print-style-helper';
     style.innerHTML = `
       @media print {
+        @page {
+          size: auto;
+          margin: 10mm !important;
+        }
+        html, body {
+          height: auto !important;
+          overflow: visible !important;
+          background: white !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
         body * {
           visibility: hidden !important;
         }
-        #${elementId}, #${elementId} * {
+        .print-parent {
           visibility: visible !important;
-        }
-        #${elementId} {
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
+          overflow: visible !important;
+          height: auto !important;
+          max-height: none !important;
+          position: static !important;
+          display: block !important;
           margin: 0 !important;
-          padding: 20px !important;
+          padding: 0 !important;
           border: none !important;
           box-shadow: none !important;
+          background: transparent !important;
+          transform: none !important;
+          filter: none !important;
+        }
+        #${elementId}, #${elementId} * {
+          visibility: visible !important;
+          overflow: visible !important;
+        }
+        #${elementId} {
+          position: relative !important;
+          display: block !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+          margin: 0 !important;
+          padding: 10px !important;
+          border: none !important;
+          box-shadow: none !important;
+          background: white !important;
           max-width: 100% !important;
         }
         .no-print, .no-print * {
@@ -8542,6 +8669,7 @@ const StudentPanel = ({ students, examResults, examSchedules, reportCards, repor
       if (styleElement) {
         styleElement.remove();
       }
+      parents.forEach(parentEl => parentEl.classList.remove('print-parent'));
     }, 1000);
   };
 
@@ -15957,6 +16085,100 @@ const schoolMigrations = `
   
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
+  const handleDeleteStudent = async (studentToDelete: any) => {
+    if (!supabase) {
+      // Local clean-up if supabase is not defined
+      setStudents(prev => prev.filter(std => std.id !== studentToDelete.id));
+      if (studentToDelete.studentId) {
+        setAttendance((prev: any) => (prev || []).filter((a: any) => a.studentId !== studentToDelete.studentId));
+        setExamResults((prev: any) => (prev || []).filter((r: any) => r.studentId !== studentToDelete.studentId));
+        setFeeTransactions((prev: any) => (prev || []).filter((t: any) => t.studentId !== studentToDelete.studentId));
+        setReportCards((prev: any) => (prev || []).filter((rc: any) => rc.studentId !== studentToDelete.studentId));
+      }
+      return;
+    }
+
+    try {
+      // 1. Delete associated report cards by both studentId (string value) and id (uuid/id value) to avoid fk constraints
+      if (studentToDelete.studentId) {
+        await supabase
+          .from('report_cards')
+          .delete()
+          .eq('student_id', studentToDelete.studentId);
+      }
+      await supabase
+        .from('report_cards')
+        .delete()
+        .eq('student_id', studentToDelete.id);
+
+      // 2. Delete associated student_attendance
+      if (studentToDelete.studentId) {
+        await supabase
+          .from('student_attendance')
+          .delete()
+          .eq('student_id', studentToDelete.studentId);
+      }
+      await supabase
+        .from('student_attendance')
+        .delete()
+        .eq('student_id', studentToDelete.id);
+
+      // 3. Delete exam results
+      if (studentToDelete.studentId) {
+        await supabase
+          .from('exam_results')
+          .delete()
+          .eq('student_id', studentToDelete.studentId);
+      }
+      await supabase
+        .from('exam_results')
+        .delete()
+        .eq('student_id', studentToDelete.id);
+
+      // 4. Delete fee collections
+      if (studentToDelete.studentId) {
+        await supabase
+          .from('fee_collections')
+          .delete()
+          .eq('student_id', studentToDelete.studentId);
+      }
+      await supabase
+        .from('fee_collections')
+        .delete()
+        .eq('student_id', studentToDelete.id);
+
+      // 5. Delete login credentials in users table
+      if (studentToDelete.studentId) {
+        await supabase
+          .from('users')
+          .delete()
+          .eq('username', studentToDelete.studentId);
+      }
+
+      // 6. Delete student profile itself
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', studentToDelete.id);
+
+      if (error && error.code !== '22P02') {
+        throw error;
+      }
+
+      // 7. Update all React states to keep everything synchronized in-memory
+      setStudents(prev => prev.filter(std => std.id !== studentToDelete.id));
+      if (studentToDelete.studentId) {
+        setAttendance((prev: any) => (prev || []).filter((a: any) => a.studentId !== studentToDelete.studentId));
+        setExamResults((prev: any) => (prev || []).filter((r: any) => r.studentId !== studentToDelete.studentId));
+        setFeeTransactions((prev: any) => (prev || []).filter((t: any) => t.studentId !== studentToDelete.studentId));
+        setReportCards((prev: any) => (prev || []).filter((rc: any) => rc.studentId !== studentToDelete.studentId));
+      }
+    } catch (err: any) {
+      console.error('Error during student deletion:', err);
+      throw new Error(err.message || 'database error');
+    }
+  };
+
   // Modal State
   const [modal, setModal] = useState<{ 
     isOpen: boolean, 
@@ -18320,17 +18542,7 @@ const schoolMigrations = `
                                         `Are you sure you want to delete ${s.name}? This action cannot be undone.`,
                                         async () => {
                                           try {
-                                            if (supabase) {
-                                              const { error } = await supabase
-                                                .from('students')
-                                                .delete()
-                                                .eq('id', s.id);
-                                              
-                                              if (error && error.code !== '22P02') {
-                                                throw error;
-                                              }
-                                            }
-                                            setStudents(prev => prev.filter(std => std.id !== s.id));
+                                            await handleDeleteStudent(s);
                                             alert('Student deleted successfully!');
                                           } catch (err: any) {
                                             console.error('Error deleting student:', err);
@@ -19160,6 +19372,7 @@ const schoolMigrations = `
                   setEditingStudentId={setEditingStudentId}
                   setIsViewOnly={setIsViewOnly}
                   schoolProfile={schoolProfile}
+                  handleDeleteStudent={handleDeleteStudent}
                 />
               </motion.div>
             )}
