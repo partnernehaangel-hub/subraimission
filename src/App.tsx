@@ -1075,12 +1075,66 @@ const ReportCardEditor = ({ student, template, reportCard: existingReport, schoo
       });
       
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      const fileName = `ReportCard-${student.name}-${student.studentId || student.id}.pdf`;
+      const fileName = `ReportCard-${student.name || 'Student'}-${student.studentId || student.id}.pdf`;
       pdf.save(fileName);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Error generating PDF. Please try printing instead.');
     }
+  };
+
+  const handlePrint = () => {
+    const elementId = `marksheet-${student.studentId || student.id}`;
+    const element = document.getElementById(elementId);
+    if (!element) {
+      console.warn('Element not found for printing:', elementId);
+      return;
+    }
+
+    const originalTitle = document.title;
+    const name = student.first_name || student.name || '';
+    const surname = student.surname || '';
+    const studentName = `${name} ${surname}`.trim() || 'Student';
+    document.title = `ReportCard-${studentName}`;
+
+    const style = document.createElement('style');
+    style.id = 'print-style-helper';
+    style.innerHTML = `
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        #${elementId}, #${elementId} * {
+          visibility: visible !important;
+        }
+        #${elementId} {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 20px !important;
+          border: none !important;
+          box-shadow: none !important;
+          max-width: 100% !important;
+        }
+        .no-print, .no-print * {
+          display: none !important;
+          visibility: hidden !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    window.print();
+
+    setTimeout(() => {
+      document.title = originalTitle;
+      const styleElement = document.getElementById('print-style-helper');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    }, 1000);
   };
 
   return (
@@ -1114,12 +1168,18 @@ const ReportCardEditor = ({ student, template, reportCard: existingReport, schoo
         <div className="flex-1 overflow-y-auto p-8">
           {previewMode ? (
             <div className="fixed inset-0 z-50 bg-slate-900/90 flex flex-col items-center overflow-auto p-4 md:p-12">
-              <div className="sticky top-0 w-full max-w-6xl flex justify-end mb-4 z-[60] gap-4">
+               <div className="sticky top-0 w-full max-w-6xl flex justify-end mb-4 z-[60] gap-4">
                   <button 
                     onClick={handleDownloadPDF}
-                    className="bg-primary text-white px-6 py-3 rounded-2xl font-black shadow-2xl flex items-center gap-2 hover:bg-primary/90 transition-all ring-4 ring-primary/10"
+                    className="bg-primary text-white px-6 py-3 rounded-2xl font-black shadow-2xl flex items-center gap-2 hover:bg-primary/95 transition-all ring-4 ring-primary/10"
                   >
                     <Download size={20} /> Download PDF
+                  </button>
+                  <button 
+                    onClick={handlePrint}
+                    className="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black shadow-2xl flex items-center gap-2 hover:bg-emerald-700 transition-all ring-4 ring-emerald-600/10"
+                  >
+                    <Printer size={20} /> Print Report Card
                   </button>
                   <button 
                     onClick={() => setPreviewMode(false)}
@@ -1215,11 +1275,29 @@ const ReportCardEditor = ({ student, template, reportCard: existingReport, schoo
               </div>
             </div>
 
-            {/* Preview Side */}
+             {/* Preview Side */}
             <div className="space-y-4">
-              <h3 className="font-bold text-slate-400 uppercase tracking-widest text-xs flex items-center gap-2">
-                <Eye size={14} /> Live Preview
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-400 uppercase tracking-widest text-xs flex items-center gap-2">
+                  <Eye size={14} /> Live Preview
+                </h3>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleDownloadPDF}
+                    className="p-1.5 bg-white border border-slate-200 text-text-sub hover:text-primary hover:border-primary/30 rounded-lg transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                    title="Download PDF"
+                  >
+                    <Download size={13} /> PDF
+                  </button>
+                  <button 
+                    onClick={handlePrint}
+                    className="p-1.5 bg-white border border-slate-200 text-text-sub hover:text-emerald-600 hover:border-emerald-500/30 rounded-lg transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                    title="Print Report Card"
+                  >
+                    <Printer size={13} /> Print
+                  </button>
+                </div>
+              </div>
               <div className="sticky top-0 scale-[0.8] origin-top">
                 <ReportCardView student={student} template={template} reportCard={formData} schoolProfile={schoolProfile} />
               </div>
@@ -8380,6 +8458,93 @@ const StudentPanel = ({ students, examResults, examSchedules, reportCards, repor
 
   const myStudent = students.find((s: any) => s.studentId === currentUser.studentId) || students[0];
 
+  const handleDownloadPDF = async () => {
+    if (!myStudent) return;
+    const elementId = `marksheet-${myStudent.studentId || myStudent.id}`;
+    const element = document.getElementById(elementId);
+    if (!element) {
+      console.warn('Element not found for download:', elementId);
+      return;
+    }
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      const studentName = `${myStudent.name || ''} ${myStudent.surname || ''}`.trim() || 'Student';
+      const fileName = `ReportCard-${studentName.replace(/\s+/g, '_')}-${myStudent.studentId || myStudent.id}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try printing instead.');
+    }
+  };
+
+  const handlePrint = () => {
+    if (!myStudent) return;
+    const elementId = `marksheet-${myStudent.studentId || myStudent.id}`;
+    const element = document.getElementById(elementId);
+    if (!element) {
+      console.warn('Element not found for printing:', elementId);
+      return;
+    }
+
+    const originalTitle = document.title;
+    const studentName = `${myStudent.name || ''} ${myStudent.surname || ''}`.trim() || 'Student';
+    document.title = `ReportCard-${studentName}`;
+
+    const style = document.createElement('style');
+    style.id = 'print-style-helper';
+    style.innerHTML = `
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        #${elementId}, #${elementId} * {
+          visibility: visible !important;
+        }
+        #${elementId} {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 20px !important;
+          border: none !important;
+          box-shadow: none !important;
+          max-width: 100% !important;
+        }
+        .no-print, .no-print * {
+          display: none !important;
+          visibility: hidden !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    window.print();
+
+    setTimeout(() => {
+      document.title = originalTitle;
+      const styleElement = document.getElementById('print-style-helper');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    }, 1000);
+  };
+
   if (!myStudent) {
     return (
       <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
@@ -8550,11 +8715,19 @@ const StudentPanel = ({ students, examResults, examSchedules, reportCards, repor
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-black text-text-heading tracking-tight uppercase">Academic Report Cards</h3>
               <div className="flex gap-2">
-                <button className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all">
-                  <Download size={20} className="text-primary" />
+                <button 
+                  onClick={handleDownloadPDF}
+                  className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all text-primary flex items-center gap-2 font-bold text-xs"
+                  title="Download PDF"
+                >
+                  <Download size={18} /> Download PDF
                 </button>
-                <button className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all">
-                  <Share2 size={20} className="text-primary" />
+                <button 
+                  onClick={handlePrint}
+                  className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all text-emerald-600 flex items-center gap-2 font-bold text-xs"
+                  title="Print Report Card"
+                >
+                  <Printer size={18} /> Print
                 </button>
               </div>
             </div>
@@ -8567,8 +8740,22 @@ const StudentPanel = ({ students, examResults, examSchedules, reportCards, repor
                       <h4 className="text-lg font-bold uppercase tracking-widest">Official Report Card</h4>
                       <p className="text-xs text-slate-400 font-medium">Session 2023-24 | {reportCardTemplates.find(t => t.id === rc.templateId)?.name}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex items-center gap-3">
                       <span className="px-4 py-1 bg-green-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest">Verified</span>
+                      <button 
+                        onClick={handleDownloadPDF}
+                        className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+                        title="Download PDF"
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button 
+                        onClick={handlePrint}
+                        className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+                        title="Print Report Card"
+                      >
+                        <Printer size={16} />
+                      </button>
                     </div>
                   </div>
                   <div className="p-8 bg-slate-50 overflow-x-auto">
