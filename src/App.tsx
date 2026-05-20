@@ -615,52 +615,68 @@ const ReportCardView = ({ student, template, reportCard, schoolProfile }: { stud
   }
 
   const getGrade = (percentage: number) => {
-    // Standard Evaluation Grading Scale (91-100: A1, 81-90: A2, etc.)
-    if (percentage >= 91) return { label: 'A1', color: 'text-green-700 bg-green-100' };
-    if (percentage >= 81) return { label: 'A2', color: 'text-green-600 bg-green-50' };
-    if (percentage >= 71) return { label: 'B1', color: 'text-blue-700 bg-blue-100' };
-    if (percentage >= 61) return { label: 'B2', color: 'text-blue-600 bg-blue-50' };
-    if (percentage >= 51) return { label: 'C1', color: 'text-yellow-700 bg-yellow-100' };
-    if (percentage >= 41) return { label: 'C2', color: 'text-yellow-600 bg-yellow-50' };
-    if (percentage >= 33) return { label: 'D', color: 'text-orange-600 bg-orange-100' };
-    return { label: 'E', color: 'text-red-600 bg-red-100' };
-  };
-
-  const getPromotionColor = (status: string) => {
-    if (status?.toLowerCase().includes('pass') || status?.toLowerCase().includes('promoted')) return 'text-green-600 bg-green-50 border-green-200';
-    if (status?.toLowerCase().includes('fail') || status?.toLowerCase().includes('detained')) return 'text-red-600 bg-red-50 border-red-200';
-    return 'text-blue-600 bg-blue-50 border-blue-200';
+    if (percentage >= 91) return { label: 'A1', color: 'text-green-755' };
+    if (percentage >= 81) return { label: 'A2', color: 'text-green-600' };
+    if (percentage >= 71) return { label: 'B1', color: 'text-blue-700' };
+    if (percentage >= 61) return { label: 'B2', color: 'text-blue-600' };
+    if (percentage >= 51) return { label: 'C1', color: 'text-yellow-700' };
+    if (percentage >= 41) return { label: 'C2', color: 'text-yellow-600' };
+    if (percentage >= 33) return { label: 'D', color: 'text-orange-600' };
+    return { label: 'E', color: 'text-red-600 font-bold' };
   };
 
   const calculatedSubjectResults = (template.subjects || []).map((subject: any) => {
-    let t1Sum = 0;
-    let t2Sum = 0;
-    const termsList = template.terms || [];
-    termsList.forEach((term: any, tIdx: number) => {
-      const tName = (term.name || '').toLowerCase();
-      // Identify Term 1 (PT1 + HY) and Term 2 (PT2 + Annual)
-      const isTerm1 = tName.includes('term 1') || tName.includes('half') || tName.includes('pt1') || tName.includes('pt-1') || tIdx === 0;
-      const isTerm2 = tName.includes('term 2') || tName.includes('annual') || tName.includes('pt2') || tName.includes('pt-2') || tIdx === 1;
-      const isPT = tName.includes('pt1') || tName.includes('pt-1') || tName.includes('pt2') || tName.includes('pt-2');
+    const terms = template.terms || [];
+    const term1 = terms[0];
+    const term2 = terms[1];
 
-      (term.subColumns || []).forEach((col: any) => {
-        let val = Number(reportCard?.termData?.[term.id]?.subjects?.[subject]?.[col.id] || 0);
-        const max = Number(col.maxMarks) || 100;
-        
-        // Scale PT marks to 20 if they were entered as 100
-        if (isPT && max > 0) {
-          val = (val / max) * 20;
-        }
+    let pt1 = 0;
+    let hy = 0;
+    let pt2 = 0;
+    let annual = 0;
 
-        if (isTerm1) t1Sum += val;
-        else if (isTerm2) t2Sum += val;
-      });
-    });
+    if (term1) {
+      const subCols = term1.subColumns || [];
+      if (subCols.length >= 2) {
+        pt1 = Number(reportCard?.termData?.[term1.id]?.subjects?.[subject]?.[subCols[0].id] || 0);
+        hy = Number(reportCard?.termData?.[term1.id]?.subjects?.[subject]?.[subCols[1].id] || 0);
+      } else if (subCols.length === 1) {
+        pt1 = 0;
+        hy = Number(reportCard?.termData?.[term1.id]?.subjects?.[subject]?.[subCols[0].id] || 0);
+      }
+    }
 
-    const t1Res = t1Sum * 0.5;
-    const t2Res = t2Sum * 0.5;
+    if (term2) {
+      const subCols = term2.subColumns || [];
+      if (subCols.length >= 2) {
+        pt2 = Number(reportCard?.termData?.[term2.id]?.subjects?.[subject]?.[subCols[0].id] || 0);
+        annual = Number(reportCard?.termData?.[term2.id]?.subjects?.[subject]?.[subCols[1].id] || 0);
+      } else if (subCols.length === 1) {
+        pt2 = 0;
+        annual = Number(reportCard?.termData?.[term2.id]?.subjects?.[subject]?.[subCols[0].id] || 0);
+      }
+    }
+
+    const t1Total = pt1 + hy;
+    const t2Total = pt2 + annual;
+
+    const t1Res = Number((t1Total * 0.5).toFixed(2));
+    const t2Res = Number((t2Total * 0.5).toFixed(2));
     const finalRes = Number((t1Res + t2Res).toFixed(1));
-    return { subject, t1Res, t2Res, finalRes, grade: getGrade(finalRes) };
+
+    return {
+      subject,
+      pt1,
+      hy,
+      t1Total,
+      pt2,
+      annual,
+      t2Total,
+      t1Res,
+      t2Res,
+      finalRes,
+      grade: getGrade(finalRes)
+    };
   });
 
   const aggregateTotal = calculatedSubjectResults.reduce((acc, curr) => acc + curr.finalRes, 0);
@@ -673,390 +689,260 @@ const ReportCardView = ({ student, template, reportCard, schoolProfile }: { stud
   return (
     <motion.div 
       id={`marksheet-${student.studentId || student.id}`}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 max-w-6xl mx-auto font-sans text-slate-900 overflow-hidden relative"
+      className="bg-white p-12 rounded-[2rem] border border-slate-200 max-w-5xl mx-auto font-serif text-slate-900 relative shadow-lg"
     >
-      {/* Decorative Elements */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl opacity-50" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-secondary/5 rounded-full -ml-32 -mb-32 blur-3xl opacity-50" />
-
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12 relative z-10 border-b border-slate-100 pb-8">
-        <div className="flex items-center gap-6">
-          <div className="w-24 h-24 bg-primary rounded-3xl flex items-center justify-center shadow-lg shadow-primary/20 rotate-3 p-4">
-            <Building2 className="text-white w-12 h-12 -rotate-3" />
+      <div className="text-center relative z-10 font-serif">
+        <h1 className="text-[32px] font-extrabold text-[#0F1E36] uppercase tracking-wide leading-none mb-2 font-serif select-none">
+          {schoolProfile?.name || "SUBRAI MISSION CONVENT SCHOOL"}
+        </h1>
+        <p className="text-xs text-[#0F1E36] font-bold tracking-widest uppercase mb-1 font-serif select-none">
+          {schoolProfile?.address || "TELIAMURA, KHOWAI, TRIPURA, PIN: 799205"}
+        </p>
+        
+        {/* Double horizontal borders to signify formal letterhead style */}
+        <div className="w-full h-[3px] bg-[#0F1E36] mt-4"></div>
+        <div className="w-full h-[1px] bg-[#0F1E36] mt-[2.5px] mb-5"></div>
+
+        <h2 className="text-2xl font-black text-[#0F1E36] tracking-[0.08em] uppercase mb-1.5 font-serif select-none">
+          ACADEMIC PROGRESS REPORT
+        </h2>
+        <p className="text-[13px] font-bold text-[#475569] italic font-serif">
+          Academic Session: {schoolProfile?.currentSession || '2026-27'}
+        </p>
+      </div>
+
+      {/* Student Profile Block inside a rounded elegant panel (exactly matching the image style) */}
+      <div className="rounded-[28px] border border-slate-200 bg-slate-50/20 p-6 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 my-8 font-serif">
+        {/* Left Column */}
+        <div className="space-y-4">
+          <div className="flex items-end w-full">
+            <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap mr-3 pb-0.5" style={{ minWidth: "115px" }}>STUDENT NAME</span>
+            <span className="text-xs font-black text-slate-950 uppercase border-b border-slate-350 pb-0.5 grow text-left font-serif leading-none tracking-medium shrink-0 truncate">
+              {student.name} {student.surname}
+            </span>
           </div>
-          <div>
-            <h1 className="text-3xl font-black text-text-heading tracking-tight uppercase leading-none mb-2">
-              {schoolProfile?.name || "JOSHODA MISSION"}
-            </h1>
-            <p className="text-sm text-text-sub font-bold tracking-widest uppercase mb-1">Academic Progress Report</p>
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-wider text-slate-500">Session {schoolProfile?.currentSession || '2023-24'}</span>
-              <span className="px-3 py-1 bg-primary/10 rounded-full text-[10px] font-black uppercase tracking-wider text-primary">Official Records</span>
-              {schoolProfile?.contact && <span className="text-[10px] font-bold text-slate-400">| Contact: {schoolProfile.contact}</span>}
-            </div>
+          <div className="flex items-end w-full">
+            <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap mr-3 pb-0.5" style={{ minWidth: "115px" }}>FATHER'S NAME</span>
+            <span className="text-xs font-bold text-slate-800 uppercase border-b border-slate-300 pb-0.5 grow text-left font-serif leading-none tracking-normal">
+              {student.fatherName || "EFGH"}
+            </span>
+          </div>
+          <div className="flex items-end w-full">
+            <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap mr-3 pb-0.5" style={{ minWidth: "115px" }}>MOTHER'S NAME</span>
+            <span className="text-xs font-bold text-slate-800 uppercase border-b border-slate-300 pb-0.5 grow text-left font-serif leading-none tracking-normal">
+              {student.motherName || "FJG"}
+            </span>
           </div>
         </div>
-        
-        <div className="text-right flex flex-col items-end gap-2">
-          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300">
-            <QRCode value={`${window.location.origin}?id=${student.studentId}`} size={48} />
+
+        {/* Right Column */}
+        <div className="space-y-4">
+          <div className="flex items-end w-full">
+            <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap mr-3 pb-0.5" style={{ minWidth: "95px" }}>STUDENT ID</span>
+            <span className="text-sm font-black text-[#0047AB] uppercase border-b border-slate-350 pb-0.5 grow text-right font-mono leading-none tracking-wide">
+              {student.studentId || "DS-587301"}
+            </span>
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital Verification</p>
+          <div className="flex items-end w-full">
+            <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap mr-3 pb-0.5" style={{ minWidth: "95px" }}>CLASS & SEC</span>
+            <span className="text-xs font-black text-slate-800 uppercase border-b border-slate-300 pb-0.5 grow text-right font-serif leading-none tracking-normal">
+              {student.class || "CLASS 1"} - {student.section || "A"}
+            </span>
+          </div>
+          <div className="flex items-end w-full">
+            <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap mr-3 pb-0.5" style={{ minWidth: "95px" }}>ROLL NUMBER</span>
+            <span className="text-xs font-black text-slate-800 border-b border-slate-300 pb-0.5 grow text-right font-serif leading-none tracking-normal">
+              {student.rollNumber || student.rollNo || "25"}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Student Profile Card - Ultra Clean */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 relative z-10">
-        <div className="col-span-3 bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6">
-          <div className="w-20 h-20 bg-slate-50 rounded-2xl border-2 border-slate-100 p-1 shrink-0 overflow-hidden group">
-            {student.photo ? (
-              <img src={student.photo} alt={student.name} className="w-full h-full object-cover rounded-xl" />
+      {/* Marks Sheet Table */}
+      <div className="mb-10 overflow-hidden border border-slate-300 rounded-[20px] shadow-sm bg-white">
+        <table className="w-full border-collapse text-[10px] font-serif">
+          <thead>
+            {/* First Row of Headers (Deep blue bar with white uppercase texts) */}
+            <tr className="bg-[#0F1E36] text-white">
+              <th rowSpan={2} className="p-4 text-left font-extrabold uppercase tracking-wider w-40 border border-slate-700">Subject</th>
+              <th colSpan={3} className="p-2.5 text-center font-bold uppercase tracking-wider border border-slate-700">Term-1 (1st Term)</th>
+              <th colSpan={3} className="p-2.5 text-center font-bold uppercase tracking-wider border border-slate-700">Term-2 (2nd Term)</th>
+              <th colSpan={2} className="p-2.5 text-center font-bold uppercase tracking-wider border border-slate-700">Weightage</th>
+              <th rowSpan={2} className="p-2.5 text-center font-extrabold uppercase tracking-wider border border-slate-700 w-24">Total Final Result</th>
+              <th rowSpan={2} className="p-2.5 text-center font-extrabold uppercase tracking-wider border border-slate-700 w-20">Total Grade</th>
+            </tr>
+            {/* Second Row of Headers */}
+            <tr className="bg-slate-100 text-slate-700 text-[8.5px] font-black tracking-wider border-b border-slate-300">
+              <th className="p-2 border border-slate-300 text-center">PT-1 (20)</th>
+              <th className="p-2 border border-slate-300 text-center">HALF YEARLY (80)</th>
+              <th className="p-1.5 border border-slate-300 text-center bg-slate-200/50 text-[#0047AB]">TOTAL (100)</th>
+              <th className="p-2 border border-slate-300 text-center">PT-2 (20)</th>
+              <th className="p-2 border border-slate-300 text-center">ANNUAL (80)</th>
+              <th className="p-1.5 border border-slate-300 text-center bg-slate-200/50 text-[#0047AB]">TOTAL (100)</th>
+              <th className="p-2 border border-slate-300 text-[#0047AB] text-center">TERM-1 50%</th>
+              <th className="p-2 border border-slate-300 text-[#0047AB] text-center">TERM-2 50%</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {calculatedSubjectResults.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="p-12 text-center text-slate-400 italic font-bold bg-slate-50/50">
+                  No examination results available.
+                </td>
+              </tr>
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-white rounded-xl">
-                <User className="w-10 h-10 text-slate-200" />
-              </div>
-            )}
-          </div>
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <h2 className="text-2xl font-black text-slate-900 leading-tight truncate">{student.name} {student.surname}</h2>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-lg border border-slate-100">
-                <ScanLine size={10} className="text-primary" /> 
-                <span className="text-[10px] font-black text-slate-400">ID:</span>
-                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-tighter">{student.studentId}</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-lg border border-slate-100">
-                <Building2 size={10} className="text-primary" /> 
-                <span className="text-[10px] font-black text-slate-400">CLASS:</span>
-                <span className="text-[10px] font-bold text-slate-700 uppercase">{student.class}-{student.section}</span>
-              </div>
-              {student.bloodGroup && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-rose-50 rounded-lg border border-rose-100">
-                   <Heart size={10} className="text-rose-500 fill-rose-500" /> 
-                   <span className="text-[10px] font-black text-rose-400">BLOOD:</span>
-                   <span className="text-[10px] font-bold text-rose-700 uppercase">{student.bloodGroup}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center group">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 group-hover:text-primary transition-colors">Final Promotion</p>
-          <div className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${reportCard?.promotionStatus?.toLowerCase().includes('fail') ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-600 border border-green-100'}`}>
-            {reportCard?.promotionStatus || 'PENDING'}
-          </div>
-        </div>
-      </div>
-
-      {/* Marks Table - Professional Grid Layout */}
-      <div className="mb-8 overflow-hidden rounded-[2rem] border border-slate-200 shadow-xl bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[10px]">
-            <thead>
-              <tr className="bg-slate-900 text-white">
-                <th rowSpan={2} className="p-4 text-left font-black uppercase tracking-[0.1em] w-48 border-r border-white/10">Learning Area / Subject</th>
-                {(template.terms || []).map((term: any) => {
-                   const tName = (term.name || '').toLowerCase();
-                   const isPT = tName.includes('pt1') || tName.includes('pt-1') || tName.includes('pt2') || tName.includes('pt-2');
-                   const isMain = tName.includes('half') || tName.includes('annual') || tName.includes('term 1') || tName.includes('term 2');
-                   const totalMax = isPT ? 20 : (isMain ? 80 : (term.subColumns || []).reduce((acc: number, c: any) => acc + (Number(c.maxMarks) || 0), 0));
-
-                   return (
-                     <th key={term.id} colSpan={(term.subColumns || []).length + 1} className="p-3 text-center font-black uppercase tracking-widest border-r border-white/10 border-b border-white/5">
-                        {term.name}
-                        <div className="text-[8px] text-white/50 font-bold mt-0.5">SCALE: {totalMax} MARKS</div>
-                     </th>
-                   );
-                })}
-                <th colSpan={4} className="p-3 text-center font-black uppercase tracking-[0.1em] bg-primary border-b border-white/10">Cumulative Assessment (50:50)</th>
-              </tr>
-              <tr className="bg-slate-800 text-slate-400">
-                {(template.terms || []).map((term: any) => {
-                  const tName = (term.name || '').toLowerCase();
-                  const isPT = tName.includes('pt1') || tName.includes('pt-1') || tName.includes('pt2') || tName.includes('pt-2');
-                  const isMain = tName.includes('half') || tName.includes('annual') || tName.includes('term 1') || tName.includes('term 2');
-                  const totalMax = isPT ? 20 : (isMain ? 80 : (term.subColumns || []).reduce((acc: number, c: any) => acc + (Number(c.maxMarks) || 0), 0));
-
-                  return (
-                    <React.Fragment key={term.id}>
-                      {(term.subColumns || []).map((col: any) => (
-                        <th key={col.id} className="p-2 text-center font-bold uppercase tracking-tight text-[8px] border-r border-white/5">
-                          {col.name} <div className="text-[7px] text-primary/70">({isPT ? 20 : (isMain ? 80 : col.maxMarks)})</div>
-                        </th>
-                      ))}
-                      <th className="p-2 text-center font-black uppercase tracking-widest bg-slate-700 text-white border-r border-white/5 shadow-inner">Total ({totalMax})</th>
-                    </React.Fragment>
-                  );
-                })}
-                <th className="p-2 text-center font-black uppercase tracking-widest bg-orange-600/20 text-orange-400 border-r border-white/5">T1 (50%)</th>
-                <th className="p-2 text-center font-black uppercase tracking-widest bg-green-600/20 text-green-400 border-r border-white/5">T2 (50%)</th>
-                <th className="p-2 text-center font-black uppercase tracking-widest bg-indigo-600/20 text-indigo-400 border-r border-white/5">Result</th>
-                <th className="p-2 text-center font-black uppercase tracking-widest bg-slate-700 text-white">Grade</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {calculatedSubjectResults.map((res: any, idx: number) => {
-                const { subject, t1Res, t2Res, finalRes, grade } = res;
-                const terms = template.terms || [];
-                const termResults: Record<string, number> = {};
-                terms.forEach((term: any) => {
-                  let termTotal = 0;
-                  (term.subColumns || []).forEach((col: any) => {
-                    const val = reportCard?.termData?.[term.id]?.subjects?.[subject]?.[col.id] || 0;
-                    termTotal += Number(val);
-                  });
-                  termResults[term.id] = termTotal;
-                });
+              calculatedSubjectResults.map((res: any, idx: number) => {
+                const { subject, pt1, hy, t1Total, pt2, annual, t2Total, t1Res, t2Res, finalRes, grade } = res;
 
                 return (
-                  <tr key={subject} className={`hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}`}>
-                    <td className="p-3 border-r border-slate-100 font-black text-slate-800 uppercase tracking-tight">{subject}</td>
-                    {(terms || []).map((term: any) => (
-                      <React.Fragment key={term.id}>
-                    {(term.subColumns || []).map((col: any) => {
-                      let val = Number(reportCard?.termData?.[term.id]?.subjects?.[subject]?.[col.id] || 0);
-                      const tName = (term.name || '').toLowerCase();
-                      const isPT = tName.includes('pt1') || tName.includes('pt-1') || tName.includes('pt2') || tName.includes('pt-2');
-                      const max = Number(col.maxMarks) || 100;
-
-                      // Scale values for display if it's a PT column
-                      if (isPT && max > 0) {
-                        val = (val / max) * 20;
-                      }
-
-                      return <td key={col.id} className="p-2 text-center border-r border-slate-50 font-black text-slate-800">{val || '0'}</td>;
-                    })}
-                        <td className="p-2 text-center font-black text-slate-900 bg-slate-50/30 border-r border-slate-100">
-                          {termResults[term.id] || '0'}
-                        </td>
-                      </React.Fragment>
-                    ))}
-                    <td className="p-2 text-center font-black text-orange-600 bg-orange-50 border-r border-slate-50 truncate">{t1Res.toFixed(1)}</td>
-                    <td className="p-2 text-center font-black text-green-600 bg-green-50 border-r border-slate-50 truncate">{t2Res.toFixed(1)}</td>
-                    <td className="p-2 text-center font-black text-indigo-600 bg-indigo-50 border-r border-slate-50 truncate">{finalRes}</td>
-                    <td className={`p-2 text-center font-black border-l border-slate-100 ${grade.color}`}>
-                      {finalRes > 0 ? grade.label : '-'}
+                  <tr key={subject} className="hover:bg-slate-50/50 transition-colors bg-white text-[11px] font-medium text-slate-800">
+                    <td className="p-3 border border-slate-300 font-extrabold font-serif text-slate-900 uppercase">
+                      {subject}
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-bold">{pt1}</td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-bold">{hy}</td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-extrabold text-[#0047AB] bg-slate-50/50">
+                      {t1Total}
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-bold">{pt2}</td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-bold">{annual}</td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-extrabold text-[#0047AB] bg-slate-50/50">
+                      {t2Total}
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-extrabold text-[#0047AB] bg-blue-50/10 italic">
+                      {t1Res.toFixed(1)}
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-extrabold text-[#0047AB] bg-blue-50/10 italic">
+                      {t2Res.toFixed(1)}
+                    </td>
+                    {/* Dark background square with white text inside cell */}
+                    <td className="p-0 border border-slate-300 text-center bg-[#0F1E36]">
+                      <div className="text-white font-extrabold font-mono py-2.5 flex items-center justify-center text-xs">
+                        {finalRes}
+                      </div>
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-extrabold text-[#0047AB] text-xs">
+                      {grade.label}
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-900 text-white font-black border-t-2 border-primary">
-                <td className="p-4 uppercase tracking-[0.2em] text-center border-r border-white/10 uppercase">COL Totals</td>
-                {(template.terms || []).map((term: any) => {
-                  let termGrandTotal = 0;
-                  const colTotals: Record<string, number> = {};
-                  (term.subColumns || []).forEach(col => {
-                    colTotals[col.id] = (template.subjects || []).reduce((acc: number, sub: string) => 
-                      acc + (Number(reportCard?.termData?.[term.id]?.subjects?.[sub]?.[col.id]) || 0), 0);
-                    termGrandTotal += colTotals[col.id];
-                  });
+              })
+            )}
 
-                  return (
-                    <React.Fragment key={term.id}>
-                      {(term.subColumns || []).map(col => (
-                        <td key={col.id} className="p-2 text-center border-r border-white/5 font-bold text-slate-300">{colTotals[col.id].toFixed(1)}</td>
-                      ))}
-                      <td className="p-2 text-center bg-slate-800 text-primary shadow-inner">{termGrandTotal.toFixed(1)}</td>
-                    </React.Fragment>
-                  );
-                })}
-                <td className="p-2 text-center bg-orange-600/40 text-white border-r border-white/10">{t1ResTotal.toFixed(1)}</td>
-                <td className="p-2 text-center bg-green-600/40 text-white border-r border-white/10">{t2ResTotal.toFixed(1)}</td>
-                <td className="p-2 text-center bg-indigo-600/40 text-white border-r border-white/10">{aggregateTotal.toFixed(1)}</td>
-                <td className="p-2 text-center bg-slate-800 text-primary uppercase">{overallGrade.label}</td>
-              </tr>
-              <tr className="bg-primary text-white">
-                <td colSpan={(template.terms || []).reduce((acc: number, t: any) => acc + (t.subColumns || []).length + 1, 0) + 1} className="p-4 text-left font-black uppercase text-[10px] tracking-[0.1em]">
-                  <div className="flex justify-between items-center px-4">
-                    <div className="flex gap-12">
-                      <div className="flex items-center gap-2">
-                        <span>Aggregate:</span>
-                        <span className="text-sm bg-white/20 px-3 py-0.5 rounded-full">{aggregateTotal.toFixed(1)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>Percentage:</span>
-                        <span className="text-sm bg-white/20 px-3 py-0.5 rounded-full">{overallPercentage.toFixed(1)}%</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs">OVERALL GRADE:</span>
-                      <span className="bg-white text-primary px-6 py-1 rounded-full text-base font-black shadow-xl">{overallGrade.label}</span>
-                    </div>
+            {/* Total Summary Row */}
+            {calculatedSubjectResults.length > 0 && (
+              <tr className="bg-slate-50 font-black text-[10.5px] border-t-2 border-slate-300 text-slate-900">
+                <td className="p-3 border border-slate-300 uppercase font-serif tracking-wide font-black">
+                  TOTAL
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono">
+                  {calculatedSubjectResults.reduce((sum, r) => sum + r.pt1, 0).toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono">
+                  {calculatedSubjectResults.reduce((sum, r) => sum + r.hy, 0).toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono text-[#0047AB] bg-slate-200/50">
+                  {calculatedSubjectResults.reduce((sum, r) => sum + r.t1Total, 0).toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono">
+                  {calculatedSubjectResults.reduce((sum, r) => sum + r.pt2, 0).toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono">
+                  {calculatedSubjectResults.reduce((sum, r) => sum + r.annual, 0).toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-200/40 text-center font-mono text-[#0047AB] bg-slate-200/50">
+                  {calculatedSubjectResults.reduce((sum, r) => sum + r.t2Total, 0).toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono text-[#0047AB] bg-blue-100/30">
+                  {t1ResTotal.toFixed(1)}
+                </td>
+                <td className="p-2 border border-slate-300 text-center font-mono text-[#0047AB] bg-blue-100/30">
+                  {t2ResTotal.toFixed(1)}
+                </td>
+                <td className="p-0 border border-slate-300 text-center bg-[#0F1E36]">
+                  <div className="text-white font-extrabold font-mono py-2 text-xs">
+                    {aggregateTotal.toFixed(1)}
                   </div>
                 </td>
+                <td className="p-2 border border-slate-300 text-center font-extrabold text-[#0047AB] text-xs">
+                  {overallGrade.label}
+                </td>
               </tr>
-            </tfoot>
-          </table>
-        </div>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        {/* Attendance Summary */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6 flex flex-col min-w-0">
-          <div className="flex items-center gap-3 text-primary pb-4 border-b border-slate-50">
-            <div className="p-2 bg-primary/10 rounded-xl shrink-0">
-              <CalendarCheck size={20} />
-            </div>
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] truncate">Attendance Record</h3>
-          </div>
-          <div className="space-y-4 flex-1">
-            {(template.terms || []).map((term: any) => (
-              <div key={term.id} className="group">
-                <div className="flex justify-between items-center mb-1.5 gap-2">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{term.name}</span>
-                  <span className="text-[10px] font-black text-slate-900 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 whitespace-nowrap">{reportCard?.termData?.[term.id]?.attendance || '0'} / 365</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (Number(reportCard?.termData?.[term.id]?.attendance || 0) / 365) * 100)}%` }}
-                    className="h-full bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary),0.3)]"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Academic Summary */}
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6 flex flex-col min-w-0">
-          <div className="flex items-center gap-3 text-primary pb-4 border-b border-slate-50">
-            <div className="p-2 bg-primary/10 rounded-xl shrink-0">
-              <Trophy size={20} />
-            </div>
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] truncate">Academic Summary</h3>
-          </div>
-          <div className="space-y-4 flex-1 flex flex-col justify-center">
-            <div className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-100 gap-2">
-               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Aggregate</span>
-               <span className="text-sm font-black text-slate-900 whitespace-nowrap">{aggregateTotal.toFixed(1)}</span>
-            </div>
-            <div className="flex justify-between items-center bg-primary/5 p-3 rounded-2xl border border-primary/10 gap-2">
-               <span className="text-[9px] font-black text-primary/60 uppercase tracking-widest truncate">Percentage</span>
-               <span className="text-sm font-black text-primary whitespace-nowrap">{overallPercentage.toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between items-center bg-slate-900 p-3 rounded-2xl gap-2">
-               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">Class Rank</span>
-               <span className="text-sm font-black text-white whitespace-nowrap">{reportCard?.rank || 'N/A'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Remarks Section */}
-        <div className="md:col-span-2 lg:col-span-1 bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden flex flex-col min-w-0">
-          <div className="absolute top-0 right-0 p-6 text-slate-50 pointer-events-none">
-            <MessageSquare size={120} className="opacity-10" />
-          </div>
-          <div className="flex items-center gap-3 text-primary mb-6 shrink-0">
-             <div className="p-2 bg-primary/10 rounded-xl">
-               <Sparkles size={20} />
-             </div>
-             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] truncate">Staff Remarks</h3>
-          </div>
-          <div className="relative z-10 space-y-4 flex-1 flex items-center">
-            <p className="italic text-xs text-slate-700 leading-relaxed font-medium font-serif line-clamp-6">
-              "{reportCard?.teacherComments || "Student demonstrates consistent effort through the academic session. Focus on mathematical problem solving is recommended for the upcoming term."}"
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Calculation Summary Box - Ultra Neat */}
-      <div className="mb-10 p-8 bg-slate-900 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[100px] -mr-32 -mt-32 pointer-events-none" />
-        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] mb-8 text-primary flex items-center justify-center gap-3">
-          <Calculator size={16} /> Evaluation Protocol & Methodology
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative z-10">
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
-            <p className="text-[8px] font-black uppercase text-orange-400 mb-2 tracking-widest">Term-1 Weightage</p>
-            <p className="text-[10px] font-bold text-slate-300 leading-tight">Scale: 20 PT1 +<br/>80 Half Yearly</p>
-          </div>
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
-            <p className="text-[8px] font-black uppercase text-green-400 mb-2 tracking-widest">Term-2 Weightage</p>
-            <p className="text-[10px] font-bold text-slate-300 leading-tight">Scale: 20 PT2 +<br/>80 Annual</p>
-          </div>
-          <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20 text-center">
-            <p className="text-[8px] font-black uppercase text-primary mb-2 tracking-widest">T1 (50%)</p>
-            <p className="text-[10px] font-bold text-white">50% of (PT1 + HY)</p>
-          </div>
-          <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20 text-center">
-            <p className="text-[8px] font-black uppercase text-primary mb-2 tracking-widest">T2 (50%)</p>
-            <p className="text-[10px] font-bold text-white">50% of (PT2 + Annual)</p>
-          </div>
-          <div className="bg-primary p-4 rounded-2xl text-center shadow-lg shadow-primary/20">
-            <p className="text-[8px] font-black uppercase text-white mb-2 tracking-widest">Final Aggregate</p>
-            <div className="text-[10px] font-bold text-white flex items-center justify-center gap-1">
-               <span>P1</span> <Plus size={8} /> <span>P2</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Grading Scale Reference */}
-      <div className="mb-12 p-6 bg-slate-900 rounded-3xl text-white">
-        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-slate-400 text-center">Standard Evaluation Grading Scale</h4>
-        <div className="grid grid-cols-5 md:grid-cols-8 gap-2">
-          {[
-            { g: 'A1', r: '91-100', c: 'bg-green-500' },
-            { g: 'A2', r: '81-90', c: 'bg-green-400' },
-            { g: 'B1', r: '71-80', c: 'bg-blue-500' },
-            { g: 'B2', r: '61-70', c: 'bg-blue-400' },
-            { g: 'C1', r: '51-60', c: 'bg-yellow-500' },
-            { g: 'C2', r: '41-50', c: 'bg-yellow-400' },
-            { g: 'D', r: '33-40', c: 'bg-orange-500' },
-            { g: 'E', r: '0-32', c: 'bg-red-500' },
-          ].map(item => (
-            <div key={item.g} className="text-center">
-              <div className={`w-full h-1 ${item.c} mb-2 rounded-full`} />
-              <p className="text-xs font-black">{item.g}</p>
-              <p className="text-[8px] opacity-60 font-bold uppercase">{item.r}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Final Signatures */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-12 mt-12 px-6">
-        <div className="text-center space-y-4">
-          <div className="w-40 border-b-2 border-slate-200 pb-2 flex flex-col items-center">
+      {/* Signatures Panel (exactly matching image structure) */}
+      <div className="grid grid-cols-3 gap-8 mt-16 pt-10 border-t border-slate-100">
+        {/* Class Teacher */}
+        <div className="text-center font-serif">
+          <div className="w-48 h-14 border-b border-slate-300 mx-auto mb-3 flex items-end justify-center relative">
             {schoolProfile?.classTeacherSignature ? (
-              <img src={schoolProfile.classTeacherSignature} alt="" className="h-10 object-contain mb-1" referrerPolicy="no-referrer" />
+              <img src={schoolProfile.classTeacherSignature} alt="" className="h-11 object-contain mb-1 mix-blend-multiply opacity-90" referrerPolicy="no-referrer" />
             ) : (
-              <div className="w-16 h-8 bg-slate-50 mb-1 rounded italic text-[8px] flex items-center justify-center text-slate-300 uppercase font-black tracking-widest">Stamp Here</div>
+              <span className="text-[9px] text-slate-300 italic mb-1 uppercase font-bold tracking-wider">Not Uploaded</span>
             )}
-            <p className="text-[10px] font-black uppercase tracking-widest text-text-sub">Class Teacher</p>
           </div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Class Teacher</p>
         </div>
-        <div className="text-center space-y-4">
-          <div className="w-40 border-b-2 border-slate-200 pb-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-text-sub">Parent/Guardian</p>
+
+        {/* Institutional Seal */}
+        <div className="text-center font-serif flex flex-col items-center justify-center">
+          <div className="w-20 h-20 rounded-full border border-slate-200 flex items-center justify-center mb-2 bg-slate-50/50 relative">
+            {schoolProfile?.schoolStamp ? (
+              <img src={schoolProfile.schoolStamp} alt="" className="w-14 h-14 object-contain mix-blend-multiply opacity-80" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="text-[8px] text-slate-300 font-bold uppercase text-center leading-tight">Seal Area</span>
+            )}
           </div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Institutional Seal</p>
         </div>
-        <div className="text-center space-y-4">
-          <div className="w-40 border-b-2 border-slate-200 pb-2 flex flex-col items-center">
+
+        {/* Principal */}
+        <div className="text-center font-serif">
+          <div className="w-48 h-14 border-b border-slate-300 mx-auto mb-3 flex items-end justify-center relative">
             {schoolProfile?.principalSignature ? (
-              <img src={schoolProfile.principalSignature} alt="" className="h-10 object-contain mb-1" referrerPolicy="no-referrer" />
+              <img src={schoolProfile.principalSignature} alt="" className="h-11 object-contain mb-1 mix-blend-multiply opacity-90" referrerPolicy="no-referrer" />
             ) : (
-              <div className="w-24 h-12 bg-primary/5 mb-1 rounded flex items-center justify-center border border-primary/10">
-                <Building2 className="text-primary/20 w-8 h-8" />
-              </div>
+              <span className="text-[9px] text-slate-300 italic mb-1 uppercase font-bold tracking-wider">Not Uploaded</span>
             )}
-            <p className="text-[10px] font-black uppercase tracking-widest text-text-sub">School Principal</p>
           </div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Principal</p>
         </div>
       </div>
 
-      {/* Footer Branding */}
-      <div className="mt-16 pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-        <p>© 2024 EDU-PRO SYSTEMS OFFICIAL REPORT</p>
-        <p>Powered by Digital Access Technology</p>
+      {/* Bottom Blocks: Evaluation Scale & Instructions for Parents */}
+      <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-8 font-serif">
+        {/* Evaluation Scale */}
+        <div className="p-6 bg-slate-50/80 rounded-[24px] border border-slate-100">
+          <h4 className="text-[11px] font-black text-[#0F1E36] uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-200">
+            Evaluation Scale
+          </h4>
+          <div className="grid grid-cols-2 gap-y-2 gap-x-6 text-[10px] font-bold text-slate-600 font-serif">
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>91 - 100</span> <span className="text-[#0047AB] font-black uppercase">A1</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>81 - 90</span> <span className="text-[#0047AB] font-black uppercase">A2</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>71 - 80</span> <span className="text-[#0047AB] font-black uppercase">B1</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>61 - 70</span> <span className="text-[#0047AB] font-black uppercase">B2</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>51 - 60</span> <span className="text-[#0047AB] font-black uppercase">C1</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>41 - 50</span> <span className="text-[#0047AB] font-black uppercase">C2</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>33 - 40</span> <span className="text-[#0047AB] font-black uppercase">D</span></div>
+            <div className="flex justify-between border-b border-slate-100 pb-1"><span>BELOW 33</span> <span className="font-black uppercase text-red-650 text-red-600">E (FAIL)</span></div>
+          </div>
+        </div>
+
+        {/* Instructions for Parents */}
+        <div className="p-6 border border-dashed border-slate-300 rounded-[24px] flex flex-col justify-center bg-white text-justify">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.16em] mb-3 text-center italic">
+            Instructions for Parents
+          </p>
+          <p className="text-[11px] leading-relaxed text-slate-600">
+            This progress report is a comprehensive reflection of your child's academic performance throughout the session. We encourage you to discuss these results with your child and the respective class teacher during the next PTM.
+          </p>
+        </div>
       </div>
     </motion.div>
   );
@@ -2403,7 +2289,7 @@ const FileUpload = ({ label, icon: Icon = Upload, required = false, onChange, pr
                   <span className="text-[10px] text-primary font-medium">PDF Document</span>
                 </div>
               ) : (
-                <img src={typeof preview === 'string' ? preview : ''} alt="Preview" className="max-h-20 w-auto object-contain rounded-lg" referrerPolicy="no-referrer" />
+                <img src={typeof preview === 'string' && preview ? preview : undefined} alt="Preview" className="max-h-20 w-auto object-contain rounded-lg" referrerPolicy="no-referrer" />
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 flex items-center justify-center rounded-lg transition-opacity z-20">
                 <button 
@@ -14507,7 +14393,9 @@ export default function App() {
           ('Hostel Fee', 'Monthly fee for hostel residents'),
           ('Tuition Fee', 'Monthly tuition fee'),
           ('Examination Fee', 'Termly exam fee'),
-          ('Transport Fee', 'Monthly transport fee')
+          ('Transport Fee', 'Monthly transport fee'),
+          ('New Admission', 'One-time session fee for new admissions'),
+          ('Re-Admission', 'Annual session fee for old admissions')
           ON CONFLICT (name) DO NOTHING;
 
           -- 2. Standardize fee_master (Renaming old columns if they exist)
@@ -14540,6 +14428,76 @@ export default function App() {
           ALTER TABLE IF EXISTS fee_master ADD COLUMN IF NOT EXISTS frequency TEXT;
           ALTER TABLE IF EXISTS fee_master ADD COLUMN IF NOT EXISTS student_type TEXT DEFAULT 'Both';
           ALTER TABLE IF EXISTS fee_master ADD COLUMN IF NOT EXISTS academic_session TEXT;
+
+          -- 2.5 Seed standard fee configurations requested by the user
+          DO $$
+          DECLARE
+            sess TEXT;
+            cls TEXT;
+            t_amount NUMERIC;
+            sessions_list TEXT[] := ARRAY['2023-24', '2024-25', '2025-26', '2026-27', '2027-28', '2028-29'];
+            classes_list TEXT[] := ARRAY[
+              'Pre-primary', 'KG-1', 'KG-2', 'LKG', 'UKG',
+              'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
+              'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12',
+              '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12',
+              'Class I', 'Class II', 'Class III', 'Class IV', 'Class V',
+              'Class VI', 'Class VII', 'Class VIII', 'Class IX', 'Class X', 'Class XI', 'Class XII'
+            ];
+          BEGIN
+            FOREACH sess IN ARRAY sessions_list LOOP
+              FOREACH cls IN ARRAY classes_list LOOP
+                -- Determine tuition fee based on class level
+                IF cls IN ('Pre-primary', 'KG-1', 'KG-2', 'LKG', 'UKG') THEN
+                  t_amount := 400;
+                ELSIF cls IN ('Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', '1', '2', '3', '4', '5', 'Class I', 'Class II', 'Class III', 'Class IV', 'Class V') THEN
+                  t_amount := 500;
+                ELSIF cls IN ('Class 6', 'Class 7', 'Class 8', '6', '7', '8', 'Class VI', 'Class VII', 'Class VIII') THEN
+                  t_amount := 600;
+                ELSE
+                  t_amount := 600; -- Default
+                END IF;
+
+                -- 1. Tuition Fee (Monthly, Both types of students)
+                IF NOT EXISTS (SELECT 1 FROM fee_master WHERE class_name = cls AND fee_type = 'Tuition Fee' AND academic_session = sess) THEN
+                  INSERT INTO fee_master (class_name, fee_type, amount, frequency, student_type, academic_session)
+                  VALUES (cls, 'Tuition Fee', t_amount, 'Monthly', 'Both', sess);
+                END IF;
+
+                -- 2. Hostel Fee (Monthly, Both types, 1200/-)
+                IF NOT EXISTS (SELECT 1 FROM fee_master WHERE class_name = cls AND fee_type = 'Hostel Fee' AND academic_session = sess) THEN
+                  INSERT INTO fee_master (class_name, fee_type, amount, frequency, student_type, academic_session)
+                  VALUES (cls, 'Hostel Fee', 1200, 'Monthly', 'Both', sess);
+                END IF;
+
+                -- 3. Admission Fee (Yearly, 3000/- for New students)
+                IF NOT EXISTS (SELECT 1 FROM fee_master WHERE class_name = cls AND fee_type = 'Admission Fee' AND academic_session = sess) THEN
+                  INSERT INTO fee_master (class_name, fee_type, amount, frequency, student_type, academic_session)
+                  VALUES (cls, 'Admission Fee', 3000, 'Yearly', 'New', sess);
+                END IF;
+
+                -- 4. New Admission Fee (Yearly, 1500/- for New students)
+                IF NOT EXISTS (SELECT 1 FROM fee_master WHERE class_name = cls AND fee_type = 'New Admission' AND academic_session = sess) THEN
+                  INSERT INTO fee_master (class_name, fee_type, amount, frequency, student_type, academic_session)
+                  VALUES (cls, 'New Admission', 1500, 'Yearly', 'New', sess);
+                END IF;
+
+                -- 5. Re-admission Fee (Yearly, 1200/- for Old students)
+                IF NOT EXISTS (SELECT 1 FROM fee_master WHERE class_name = cls AND fee_type = 'Re-admission Fee' AND academic_session = sess) THEN
+                  INSERT INTO fee_master (class_name, fee_type, amount, frequency, student_type, academic_session)
+                  VALUES (cls, 'Re-admission Fee', 1200, 'Yearly', 'Old', sess);
+                END IF;
+
+                -- 6. Re-Admission Fee (Alias, Yearly, 1200/- for Old students)
+                IF NOT EXISTS (SELECT 1 FROM fee_master WHERE class_name = cls AND fee_type = 'Re-Admission' AND academic_session = sess) THEN
+                  INSERT INTO fee_master (class_name, fee_type, amount, frequency, student_type, academic_session)
+                  VALUES (cls, 'Re-Admission', 1200, 'Yearly', 'Old', sess);
+                END IF;
+
+              END LOOP;
+            END LOOP;
+          END $$;
+
 
           -- 3. Standardize fee_collections
           ALTER TABLE IF EXISTS fee_collections ADD COLUMN IF NOT EXISTS class TEXT;
@@ -15122,7 +15080,7 @@ const schoolMigrations = `
     castes: ['Hindu', 'Muslim', 'Sikh', 'Christian'],
     religions: ['Hinduism', 'Islam', 'Sikhism', 'Christianity', 'Buddhism', 'Jainism'],
     titles: ['Mr.', 'Miss', 'Mrs.'],
-    classes: ['LKG', 'UKG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'],
+    classes: ['Pre-primary', 'KG-1', 'KG-2', 'LKG', 'UKG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'],
     sections: ['A', 'B', 'C', 'D'],
     subjects: ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi', 'Computer Science'],
     genders: ['Male', 'Female', 'Others'],
@@ -19400,6 +19358,45 @@ const schoolMigrations = `
               <button 
                 onClick={async () => {
                   try {
+                    // Normalize standard/roman class names
+                    const normalizeClassName = (rawClass: string) => {
+                      if (!rawClass) return '';
+                      const clean = rawClass.trim().toUpperCase();
+                      if (clean === '1' || clean === 'I' || clean === 'CLASS I') return 'Class 1';
+                      if (clean === '2' || clean === 'II' || clean === 'CLASS II') return 'Class 2';
+                      if (clean === '3' || clean === 'III' || clean === 'CLASS III') return 'Class 3';
+                      if (clean === '4' || clean === 'IV' || clean === 'CLASS IV') return 'Class 4';
+                      if (clean === '5' || clean === 'V' || clean === 'CLASS V') return 'Class 5';
+                      if (clean === '6' || clean === 'VI' || clean === 'CLASS VI') return 'Class 6';
+                      if (clean === '7' || clean === 'VII' || clean === 'CLASS VII') return 'Class 7';
+                      if (clean === '8' || clean === 'VIII' || clean === 'CLASS VIII') return 'Class 8';
+                      if (clean === '9' || clean === 'IX' || clean === 'CLASS IX') return 'Class 9';
+                      if (clean === '10' || clean === 'X' || clean === 'CLASS X') return 'Class 10';
+                      if (clean === '11' || clean === 'XI' || clean === 'CLASS XI') return 'Class 11';
+                      if (clean === '12' || clean === 'XII' || clean === 'CLASS XII') return 'Class 12';
+                      if (clean === 'KG1' || clean === 'KG 1' || clean === 'KG-1') return 'KG-1';
+                      if (clean === 'KG2' || clean === 'KG 2' || clean === 'KG-2') return 'KG-2';
+                      if (clean === 'LKG' || clean === 'L.K.G.') return 'LKG';
+                      if (clean === 'UKG' || clean === 'U.K.G.') return 'UKG';
+                      if (clean === 'PRE-PRIMARY' || clean === 'PREPRIMARY' || clean === 'NURSERY') return 'Pre-primary';
+                      return rawClass.trim();
+                    };
+
+                    // Format date string DD/MM/YYYY into YYYY-MM-DD
+                    const convertDateToISO = (dateStr: string) => {
+                      if (!dateStr) return '';
+                      const dStr = dateStr.trim();
+                      if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(dStr)) {
+                        const separator = dStr.includes('/') ? '/' : '-';
+                        const parts = dStr.split(separator);
+                        const day = parts[0].padStart(2, '0');
+                        const month = parts[1].padStart(2, '0');
+                        const year = parts[2];
+                        return `${year}-${month}-${day}`;
+                      }
+                      return dateStr;
+                    };
+
                     let data: any[];
                     const trimmedInput = bulkStudentInput.trim();
                     
@@ -19416,9 +19413,8 @@ const schoolMigrations = `
                       if (lines.length < 2) throw new Error('Data must contain a header row and at least one student entry.');
                       
                       const firstLine = lines[0];
-                      // Detect separator: Tab is standard for copy-paste from spreadsheet
                       const separator = firstLine.includes('\t') ? '\t' : (firstLine.includes(',') ? ',' : null);
-                      if (!separator) throw new Error('Format not recognized. Please copy/paste a table from Excel or providing a valid JSON array.');
+                      if (!separator) throw new Error('Format not recognized. Please copy/paste a table from Excel or provide a valid JSON array.');
                       
                       const rawHeaders = firstLine.split(separator).map(h => h.trim().toLowerCase());
                       data = lines.slice(1).map(line => {
@@ -19426,7 +19422,6 @@ const schoolMigrations = `
                         const obj: any = {};
                         rawHeaders.forEach((header, i) => {
                           const val = values[i] ? values[i].trim() : '';
-                          // Flexible header matching
                           if (header === 'name' || header === 'student name' || header === 'first name') obj.Name = val;
                           else if (header === 'surname' || header === 'last name') obj.Surname = val;
                           else if (header === 'student type' || header === 'type' || header === 'category') obj['student type'] = val;
@@ -19439,35 +19434,83 @@ const schoolMigrations = `
                           else if (header.includes('phone') || header.includes('mobile')) obj['FATHERS PHONE No.'] = val;
                           else if (header.includes('blood')) obj['Blood Group'] = val;
                           else if (header === 'address' || header.includes('residential')) obj['Address'] = val;
-                          else obj[header] = val; // Fallback
+                          else obj[header] = val;
                         });
                         return obj;
                       });
                     }
                     
                     let successCount = 0;
+                    const failures: { name: string; error: string }[] = [];
+                    const missing = (window as any)._missing_student_cols || new Set();
+                    (window as any)._missing_student_cols = missing;
+
                     for (const s of data) {
-                      const studentPayload = {
-                        first_name: s.Name || s.name || s.firstName || '',
-                        surname: s.Surname || s.surname || s.lastName || '',
+                      const fullName = (s.Name || s.name || s.firstName || '').trim();
+                      let first_name = fullName;
+                      let surname = (s.Surname || s.surname || s.lastName || '').trim();
+                      if (!surname && fullName.includes(' ')) {
+                        const nameParts = fullName.split(/\s+/);
+                        first_name = nameParts[0];
+                        surname = nameParts.slice(1).join(' ');
+                      }
+
+                      const class_name = normalizeClassName(s["Class / Section"] || s.class || s.className || '');
+                      const date_of_birth = convertDateToISO(s["D.O.B"] || s.dob || s.dateOfBirth || '');
+
+                      const studentPayload: any = {
+                        first_name,
+                        surname,
                         student_type: s["student type"] || s.studentType || s.type || 'OLD',
                         academic_session: schoolProfile.currentSession || '2023-24',
-                        class_name: s["Class / Section"] || s.class || s.className || '',
+                        class_name,
                         section_name: s["SECTION"] || s.section || s.sectionName || '',
                         roll_number: s["ROLL NO"] || s.rollNumber || s.roll || '',
-                        date_of_birth: s["D.O.B"] || s.dob || s.dateOfBirth || '',
+                        date_of_birth,
                         father_name: s["Father Name"] || s.fatherName || '',
                         mother_name: s["Mother Name"] || s.motherName || '',
                         father_mobile: s["FATHERS PHONE No."] || s.fatherMobile || s.phone || s.mobile || '',
                         blood_group: s["Blood Group"] || s.bloodGroup || '',
                         residential_address: s["Address"] || s.address || s.residentialAddress || '',
-                        student_id: `STD-${Math.floor(100000 + Math.random() * 900000)}`,
-                        admission_date: new Date().toISOString().split('T')[0]
+                        student_id: s.student_id || s.studentId || `STD-${Math.floor(100000 + Math.random() * 900000)}`,
+                        admission_date: s.admission_date || s.admissionDate || new Date().toISOString().split('T')[0]
                       };
 
                       if (supabase) {
-                        const { error } = await supabase.from('students').insert([studentPayload]);
-                        if (!error) successCount++;
+                        let currentPayload = { ...studentPayload };
+                        let success = false;
+                        let lastError = '';
+
+                        for (let attempt = 0; attempt < 10; attempt++) {
+                          Object.keys(currentPayload).forEach(k => {
+                            if (missing.has(k)) delete currentPayload[k];
+                          });
+
+                          try {
+                            const { error } = await supabase.from('students').insert([currentPayload]);
+                            if (!error) {
+                              successCount++;
+                              success = true;
+                              break;
+                            } else {
+                              lastError = error.message;
+                              if (error.message.includes('column') && error.message.includes('does not exist')) {
+                                const match = error.message.match(/column "([^"]+)"/);
+                                if (match && match[1]) {
+                                  missing.add(match[1]);
+                                  continue;
+                                }
+                              }
+                              break;
+                            }
+                          } catch (e: any) {
+                            lastError = e?.message || 'Exception during save';
+                            break;
+                          }
+                        }
+                        if (!success) {
+                          failures.push({ name: fullName, error: lastError });
+                        }
                       } else {
                         // For local testing
                         setStudents((prev: any) => [{
@@ -19491,7 +19534,13 @@ const schoolMigrations = `
                       }
                     }
 
-                    alert(`Successfully imported ${successCount} out of ${data.length} students.`);
+                    if (failures.length > 0) {
+                      const sampleErrors = failures.slice(0, 5).map(f => `${f.name}: ${f.error}`).join('\n');
+                      alert(`Successfully imported ${successCount} out of ${data.length} students.\n\nFailed records:\n${sampleErrors}${failures.length > 5 ? `\nand ${failures.length - 5} more...` : ''}`);
+                    } else {
+                      alert(`Successfully imported all ${successCount} students.`);
+                    }
+
                     setShowBulkStudentModal(false);
                     setBulkStudentInput('');
                     
@@ -21175,19 +21224,31 @@ const IDCardsModule = ({
         <div className="grid grid-cols-3 gap-12 mt-16 pt-12 border-t border-slate-100">
           <div className="text-center">
             <div className="w-48 h-12 border-b-2 border-slate-300 mx-auto mb-3 flex items-end justify-center relative">
-               <img src={schoolProfile.classTeacherSignature} alt="" className="h-full object-contain mix-blend-multiply opacity-80" />
+               {schoolProfile.classTeacherSignature ? (
+                 <img src={schoolProfile.classTeacherSignature} alt="" className="h-full object-contain mix-blend-multiply opacity-80" />
+               ) : (
+                 <span className="text-[9px] text-slate-300 italic mb-1 uppercase font-bold tracking-wider">Not Uploaded</span>
+               )}
             </div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Class Teacher</p>
           </div>
           <div className="text-center flex flex-col items-center justify-center">
             <div className="w-24 h-24 rounded-full border-2 border-primary/10 flex items-center justify-center mb-2 bg-primary/5 shadow-inner">
-               <img src={schoolProfile.schoolStamp} alt="" className="w-16 h-16 object-contain mix-blend-multiply opacity-40 grayscale contrast-150" />
+               {schoolProfile.schoolStamp ? (
+                 <img src={schoolProfile.schoolStamp} alt="" className="w-16 h-16 object-contain mix-blend-multiply opacity-40 grayscale contrast-150" />
+               ) : (
+                 <span className="text-[9px] text-slate-300 italic uppercase font-bold tracking-wider">No Seal</span>
+               )}
             </div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Institutional Seal</p>
           </div>
           <div className="text-center">
             <div className="w-48 h-12 border-b-2 border-slate-300 mx-auto mb-3 flex items-end justify-center relative">
-               <img src={schoolProfile.principalSignature} alt="" className="h-full object-contain mix-blend-multiply opacity-80" />
+               {schoolProfile.principalSignature ? (
+                 <img src={schoolProfile.principalSignature} alt="" className="h-full object-contain mix-blend-multiply opacity-80" />
+               ) : (
+                 <span className="text-[9px] text-slate-300 italic mb-1 uppercase font-bold tracking-wider">Not Uploaded</span>
+               )}
             </div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Principal</p>
           </div>
