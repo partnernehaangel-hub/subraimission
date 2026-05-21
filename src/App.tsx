@@ -17340,6 +17340,13 @@ const schoolMigrations = `
                 onClick={() => setView('user-logs')} 
                 isSidebarOpen={isSidebarOpen}
               />
+              <SidebarItem 
+                icon={Settings} 
+                label={isSidebarOpen ? "Software Settings" : ""} 
+                active={view === 'settings'} 
+                onClick={() => setView('settings')} 
+                isSidebarOpen={isSidebarOpen}
+              />
             </>
           )}
           {currentUser?.role === 'student' && (
@@ -17503,6 +17510,18 @@ const schoolMigrations = `
                   <User size={18} className="text-primary" />
                   <span>Profile Settings</span>
                 </button>
+                {(currentUser?.role === 'admin' || currentUser?.role === 'super-admin') && (
+                  <button 
+                    onClick={() => {
+                      setView('settings');
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-all"
+                  >
+                    <Settings size={18} className="text-primary" />
+                    <span>Software Settings</span>
+                  </button>
+                )}
                 <button 
                   onClick={() => {
                     setCurrentUser(null);
